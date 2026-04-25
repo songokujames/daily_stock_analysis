@@ -1309,7 +1309,9 @@ class GeminiAnalyzer:
         system_prompt = self._get_analysis_system_prompt(report_language, stock_code=code)
         
         # 请求前增加延时（防止连续请求触发限流）
-        request_delay = config.gemini_request_delay if request_delay < 6:     request_delay = 6
+        request_delay = config.gemini_request_delay 
+        if request_delay < 6:     
+                request_delay = 6
         if request_delay > 0:
             logger.debug(f"[LLM] 请求前等待 {request_delay:.1f} 秒...")
             _emit_progress(65, f"{code}：LLM 请求前等待 {request_delay:.1f} 秒")
