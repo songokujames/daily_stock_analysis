@@ -1346,8 +1346,10 @@ class GeminiAnalyzer:
         
         try:
             # 格式化输入（包含技术面数据和新闻）
-            if news_context and len(news_context) > 3500:     news_context = news_context[:3500]  prompt = self._format_prompt(context, name, news_context, report_language=report_language)
+            if news_context and len(news_context) > 3500:     
+                news_context = news_context[:3500]  
             
+            prompt = self._format_prompt(context, name, news_context, report_language=report_language)
             config = self._get_runtime_config()
             model_name = config.litellm_model or "unknown"
             logger.info(f"========== AI 分析 {name}({code}) ==========")
