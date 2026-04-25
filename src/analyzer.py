@@ -1148,7 +1148,7 @@ class GeminiAnalyzer:
         max_tokens = (
             generation_config.get('max_output_tokens')
             or generation_config.get('max_tokens')
-            or 8192
+            or 2800
         )
         requested_temperature = generation_config.get('temperature', 0.7)
 
@@ -1177,6 +1177,7 @@ class GeminiAnalyzer:
                         request_overrides={"extra_body": extra} if extra else None,
                     ),
                     "max_tokens": max_tokens,
+                    "timeout": 180,
                 }
                 if extra:
                     call_kwargs["extra_body"] = extra
@@ -1308,7 +1309,7 @@ class GeminiAnalyzer:
         system_prompt = self._get_analysis_system_prompt(report_language, stock_code=code)
         
         # 请求前增加延时（防止连续请求触发限流）
-        request_delay = config.gemini_request_delay
+        request_delay = config.gemini_request_delay if request_delay < 6:     request_delay = 6
         if request_delay > 0:
             logger.debug(f"[LLM] 请求前等待 {request_delay:.1f} 秒...")
             _emit_progress(65, f"{code}：LLM 请求前等待 {request_delay:.1f} 秒")
@@ -1343,7 +1344,7 @@ class GeminiAnalyzer:
         
         try:
             # 格式化输入（包含技术面数据和新闻）
-            prompt = self._format_prompt(context, name, news_context, report_language=report_language)
+            if news_context and len(news_context) > 3500:     news_context = news_context[:3500]  prompt = self._format_prompt(context, name, news_context, report_language=report_language)
             
             config = self._get_runtime_config()
             model_name = config.litellm_model or "unknown"
@@ -1354,13 +1355,13 @@ class GeminiAnalyzer:
 
             # 记录完整 prompt 到日志（INFO级别记录摘要，DEBUG记录完整）
             prompt_preview = prompt[:500] + "..." if len(prompt) > 500 else prompt
-            logger.info(f"[LLM Prompt 预览]\n{prompt_preview}")
+            logger.info(f"[LLM Prompt长度] {len(prompt)} chars")
             logger.debug(f"=== 完整 Prompt ({len(prompt)}字符) ===\n{prompt}\n=== End Prompt ===")
 
             # 设置生成配置
             generation_config = {
-                "temperature": config.llm_temperature,
-                "max_output_tokens": 8192,
+                "temperature": 0.3,
+                "max_output_tokens": 2800,
             }
 
             logger.info(f"[LLM调用] 开始调用 {model_name}...")
@@ -1373,12 +1374,14 @@ class GeminiAnalyzer:
 
             while True:
                 start_time = time.time()
+                use_stream = not str(model_name).startswith("nvidia_nim/")
+
                 response_text, model_used, llm_usage = self._call_litellm(
-                    current_prompt,
-                    generation_config,
-                    system_prompt=system_prompt,
-                    stream=True,
-                    stream_progress_callback=stream_progress_callback,
+                current_prompt,
+                generation_config,
+                system_prompt=system_prompt,
+                stream=use_stream,
+                stream_progress_callback=stream_progress_callback if use_stream else None,
                 )
                 elapsed = time.time() - start_time
 
@@ -1387,7 +1390,7 @@ class GeminiAnalyzer:
                     f"[LLM返回] {model_name} 响应成功, 耗时 {elapsed:.2f}s, 响应长度 {len(response_text)} 字符"
                 )
                 response_preview = response_text[:300] + "..." if len(response_text) > 300 else response_text
-                logger.info(f"[LLM返回 预览]\n{response_preview}")
+                logger.info(f"[LLM返回长度] {len(response_text)} chars")
                 logger.debug(
                     f"=== {model_name} 完整响应 ({len(response_text)}字符) ===\n{response_text}\n=== End Response ==="
                 )
